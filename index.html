@@ -3,136 +3,471 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Memory Match</title>
-
+<title>Quick Games</title>
 <style>
-body {
-  font-family: Arial, sans-serif;
-  text-align: center;
-  background: #0f172a;
-  color: white;
-  margin: 0;
-}
+  :root {
+    --bg: #0f172a;
+    --panel: #111827;
+    --card: #1f2937;
+    --card2: #334155;
+    --accent: #22c55e;
+    --accent2: #38bdf8;
+    --text: #f8fafc;
+    --muted: #cbd5e1;
+    --matched: #4ade80;
+    --selected: #f59e0b;
+  }
 
-h1 { margin-top: 20px; }
+  * { box-sizing: border-box; }
 
-#game {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  max-width: 350px;
-  margin: 20px auto;
-  gap: 10px;
-}
+  body {
+    font-family: Arial, sans-serif;
+    text-align: center;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 18px 14px 28px;
+  }
 
-.card {
-  width: 100%;
-  aspect-ratio: 1;
-  background: #1f2937;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 30px;
-  cursor: pointer;
-  border-radius: 10px;
-  transition: all 0.2s ease;
-  -webkit-tap-highlight-color: transparent;
-}
+  .wrap {
+    max-width: 420px;
+    margin: 0 auto;
+  }
 
-.card.flipped {
-  background: #22c55e;
-}
+  h1 {
+    margin: 8px 0 10px;
+    font-size: 30px;
+  }
 
-.card.matched {
-  background: #4ade80;
-}
+  .panel {
+    background: var(--panel);
+    border-radius: 16px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
 
-button {
-  margin-top: 20px;
-  padding: 10px 20px;
-  font-size: 16px;
-}
+  .controls {
+    display: grid;
+    gap: 10px;
+  }
+
+  select, button {
+    width: 100%;
+    padding: 12px 14px;
+    font-size: 16px;
+    border-radius: 12px;
+    border: 0;
+  }
+
+  select {
+    background: #e2e8f0;
+    color: #0f172a;
+  }
+
+  button {
+    background: var(--accent2);
+    color: #082f49;
+    font-weight: 700;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    margin-top: 12px;
+  }
+
+  .stat {
+    background: #0b1220;
+    border-radius: 12px;
+    padding: 10px;
+  }
+
+  .label {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+
+  .value {
+    font-size: 22px;
+    font-weight: 700;
+  }
+
+  #subtitle {
+    color: var(--muted);
+    margin: 10px 0 0;
+    line-height: 1.35;
+  }
+
+  #memoryGame {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    max-width: 360px;
+    margin: 0 auto;
+  }
+
+  .memory-card, .stack-tile {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .memory-card {
+    width: 100%;
+    aspect-ratio: 1;
+    background: var(--card);
+    border-radius: 12px;
+    font-size: 30px;
+    cursor: pointer;
+    transition: transform 0.18s ease, background 0.2s ease;
+  }
+
+  .memory-card.flipped {
+    background: var(--accent);
+    color: #052e16;
+    transform: scale(1.03);
+  }
+
+  .memory-card.matched {
+    background: var(--matched);
+    color: #052e16;
+  }
+
+  #stackerGame {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+    max-width: 360px;
+    margin: 0 auto;
+    align-items: end;
+    min-height: 340px;
+  }
+
+  .stack {
+    min-height: 320px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    justify-content: flex-start;
+  }
+
+  .stack-tile {
+    aspect-ratio: 1;
+    background: var(--card2);
+    border-radius: 12px;
+    font-size: 28px;
+    cursor: pointer;
+    transition: transform 0.18s ease, background 0.2s ease, opacity 0.2s ease;
+  }
+
+  .stack-tile.top {
+    background: #e2e8f0;
+    color: #0f172a;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.08) inset;
+  }
+
+  .stack-tile.locked {
+    opacity: 0.42;
+    cursor: default;
+  }
+
+  .stack-tile.selected {
+    background: var(--selected);
+    color: #1c1917;
+    transform: translateY(-4px);
+  }
+
+  .stack-tile.cleared {
+    visibility: hidden;
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  #message {
+    margin-top: 14px;
+    min-height: 24px;
+    color: var(--muted);
+    font-weight: 700;
+  }
 </style>
 </head>
-
 <body>
+  <div class="wrap">
+    <h1>Quick Games</h1>
 
-<h1>Memory Match</h1>
-<p>Moves: <span id="moves">0</span></p>
-<button onclick="startGame()">New Game</button>
+    <div class="panel controls">
+      <select id="gamePicker">
+        <option value="memory">Memory Match</option>
+        <option value="stacker">Stacker</option>
+      </select>
+      <button id="newGameBtn">New Game</button>
+      <div class="stats">
+        <div class="stat">
+          <div class="label" id="stat1Label">Moves</div>
+          <div class="value" id="stat1Value">0</div>
+        </div>
+        <div class="stat">
+          <div class="label" id="stat2Label">Progress</div>
+          <div class="value" id="stat2Value">0/8</div>
+        </div>
+      </div>
+      <p id="subtitle">Flip two matching tiles.</p>
+    </div>
 
-<div id="game"></div>
+    <div class="panel">
+      <div id="memoryGame"></div>
+      <div id="stackerGame" class="hidden"></div>
+      <div id="message"></div>
+    </div>
+  </div>
 
 <script>
-const emojis = ["🍎","🍌","🍇","🍊","🍒","🍉","🥝","🍍"];
-let cards = [];
-let flipped = [];
-let moves = 0;
-let lock = false;
+  const picker = document.getElementById('gamePicker');
+  const newGameBtn = document.getElementById('newGameBtn');
+  const stat1Label = document.getElementById('stat1Label');
+  const stat1Value = document.getElementById('stat1Value');
+  const stat2Label = document.getElementById('stat2Label');
+  const stat2Value = document.getElementById('stat2Value');
+  const subtitle = document.getElementById('subtitle');
+  const message = document.getElementById('message');
+  const memoryGameEl = document.getElementById('memoryGame');
+  const stackerGameEl = document.getElementById('stackerGame');
 
-function shuffle(array) {
-  let a = [...array];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+  function shuffle(array) {
+    const a = [...array];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
   }
-  return a;
-}
 
-function startGame() {
-  const game = document.getElementById("game");
-  game.innerHTML = "";
-  cards = shuffle([...emojis, ...emojis]);
-  flipped = [];
-  moves = 0;
-  lock = false;
-  document.getElementById("moves").innerText = moves;
+  const memory = {
+    icons: ['🍎','🍌','🍇','🍊','🍒','🍉','🥝','🍍'],
+    cards: [],
+    flipped: [],
+    moves: 0,
+    matches: 0,
+    lock: false,
 
-  cards.forEach((emoji, i) => {
-    const card = document.createElement("div");
-    card.className = "card";
-    card.dataset.emoji = emoji;
-    card.onclick = () => flipCard(card);
-    game.appendChild(card);
-  });
-}
+    start() {
+      this.cards = shuffle([...this.icons, ...this.icons]);
+      this.flipped = [];
+      this.moves = 0;
+      this.matches = 0;
+      this.lock = false;
+      memoryGameEl.innerHTML = '';
+      message.textContent = '';
 
-function flipCard(card) {
-  if (lock || card.classList.contains("flipped") || card.classList.contains("matched")) return;
+      this.cards.forEach((emoji) => {
+        const card = document.createElement('div');
+        card.className = 'memory-card';
+        card.dataset.emoji = emoji;
+        card.addEventListener('click', () => this.flip(card));
+        memoryGameEl.appendChild(card);
+      });
 
-  card.classList.add("flipped");
-  card.innerText = card.dataset.emoji;
-  flipped.push(card);
+      stat1Label.textContent = 'Moves';
+      stat2Label.textContent = 'Progress';
+      subtitle.textContent = 'Flip two matching tiles.';
+      this.updateStats();
+    },
 
-  if (flipped.length === 2) {
-    moves++;
-    document.getElementById("moves").innerText = moves;
+    updateStats() {
+      stat1Value.textContent = this.moves;
+      stat2Value.textContent = `${this.matches}/8`;
+    },
 
-    const [a, b] = flipped;
+    flip(card) {
+      if (this.lock || card.classList.contains('flipped') || card.classList.contains('matched')) return;
 
-    if (a.dataset.emoji === b.dataset.emoji) {
-      a.classList.add("matched");
-      b.classList.add("matched");
-      flipped = [];
+      card.classList.add('flipped');
+      card.textContent = card.dataset.emoji;
+      this.flipped.push(card);
 
-      if (document.querySelectorAll(".matched").length === cards.length) {
-        setTimeout(() => alert("Nice — you cleared it in " + moves + " moves"), 200);
+      if (this.flipped.length !== 2) return;
+
+      this.moves += 1;
+      this.updateStats();
+      const [a, b] = this.flipped;
+
+      if (a.dataset.emoji === b.dataset.emoji) {
+        a.classList.add('matched');
+        b.classList.add('matched');
+        this.flipped = [];
+        this.matches += 1;
+        this.updateStats();
+
+        if (this.matches === 8) {
+          message.textContent = `Nice — cleared in ${this.moves} moves.`;
+        }
+        return;
       }
-    } else {
-      lock = true;
+
+      this.lock = true;
       setTimeout(() => {
-        a.classList.remove("flipped");
-        b.classList.remove("flipped");
-        a.innerText = "";
-        b.innerText = "";
-        flipped = [];
-        lock = false;
+        a.classList.remove('flipped');
+        b.classList.remove('flipped');
+        a.textContent = '';
+        b.textContent = '';
+        this.flipped = [];
+        this.lock = false;
       }, 800);
     }
+  };
+
+  const stacker = {
+    symbols: ['🀄','🀙','🀚','🀛','🀜','🀝','🀞','🀟'],
+    columns: [],
+    selected: null,
+    moves: 0,
+    clearedPairs: 0,
+
+    start() {
+      const pool = shuffle([...this.symbols, ...this.symbols]);
+      const heights = [4, 3, 2, 3, 4];
+      this.columns = heights.map(() => []);
+      this.selected = null;
+      this.moves = 0;
+      this.clearedPairs = 0;
+      message.textContent = '';
+
+      let index = 0;
+      heights.forEach((height, colIndex) => {
+        for (let i = 0; i < height; i++) {
+          this.columns[colIndex].push({
+            symbol: pool[index],
+            cleared: false,
+            id: `c${colIndex}r${i}`
+          });
+          index += 1;
+        }
+      });
+
+      stat1Label.textContent = 'Removals';
+      stat2Label.textContent = 'Remaining';
+      subtitle.textContent = 'Like a tiny stack-based Mahjong: only the top tile of each stack can be picked. Match two identical top tiles to clear them.';
+      this.render();
+      this.updateStats();
+    },
+
+    getTopIndex(column) {
+      for (let i = column.length - 1; i >= 0; i--) {
+        if (!column[i].cleared) return i;
+      }
+      return -1;
+    },
+
+    updateStats() {
+      stat1Value.textContent = this.moves;
+      stat2Value.textContent = String(8 - this.clearedPairs);
+    },
+
+    render() {
+      stackerGameEl.innerHTML = '';
+
+      this.columns.forEach((column, colIndex) => {
+        const stack = document.createElement('div');
+        stack.className = 'stack';
+        const topIndex = this.getTopIndex(column);
+
+        column.forEach((tile, tileIndex) => {
+          const tileEl = document.createElement('div');
+          tileEl.className = 'stack-tile';
+
+          if (tile.cleared) {
+            tileEl.classList.add('cleared');
+            tileEl.textContent = '';
+          } else {
+            tileEl.textContent = tile.symbol;
+            if (tileIndex === topIndex) {
+              tileEl.classList.add('top');
+              tileEl.addEventListener('click', () => this.pick(colIndex, tileIndex));
+            } else {
+              tileEl.classList.add('locked');
+            }
+
+            if (this.selected && this.selected.colIndex === colIndex && this.selected.tileIndex === tileIndex) {
+              tileEl.classList.add('selected');
+            }
+          }
+
+          stack.appendChild(tileEl);
+        });
+
+        stackerGameEl.appendChild(stack);
+      });
+    },
+
+    pick(colIndex, tileIndex) {
+      const tile = this.columns[colIndex][tileIndex];
+      if (tile.cleared) return;
+
+      if (this.selected && this.selected.colIndex === colIndex && this.selected.tileIndex === tileIndex) {
+        this.selected = null;
+        this.render();
+        return;
+      }
+
+      if (!this.selected) {
+        this.selected = { colIndex, tileIndex, symbol: tile.symbol };
+        this.render();
+        return;
+      }
+
+      this.moves += 1;
+      const prev = this.selected;
+      const prevTile = this.columns[prev.colIndex][prev.tileIndex];
+
+      if (prevTile.symbol === tile.symbol) {
+        prevTile.cleared = true;
+        tile.cleared = true;
+        this.clearedPairs += 1;
+        this.selected = null;
+        this.updateStats();
+        this.render();
+
+        if (this.clearedPairs === 8) {
+          message.textContent = `Stacker cleared in ${this.moves} removals.`;
+        } else {
+          message.textContent = 'Match cleared.';
+        }
+        return;
+      }
+
+      this.selected = { colIndex, tileIndex, symbol: tile.symbol };
+      this.updateStats();
+      this.render();
+      message.textContent = 'No match. Pick another top tile.';
+    }
+  };
+
+  function showGame(name) {
+    const isMemory = name === 'memory';
+    memoryGameEl.classList.toggle('hidden', !isMemory);
+    stackerGameEl.classList.toggle('hidden', isMemory);
+    message.textContent = '';
+
+    if (isMemory) {
+      memory.start();
+    } else {
+      stacker.start();
+    }
   }
-}
 
-startGame();
+  picker.addEventListener('change', () => showGame(picker.value));
+  newGameBtn.addEventListener('click', () => showGame(picker.value));
+
+  showGame('memory');
 </script>
-
 </body>
 </html>
