@@ -18,15 +18,15 @@ h1 { margin-top: 20px; }
 
 #game {
   display: grid;
-  grid-template-columns: repeat(4, 80px);
+  grid-template-columns: repeat(4, 1fr);
+  max-width: 350px;
+  margin: 20px auto;
   gap: 10px;
-  justify-content: center;
-  margin-top: 20px;
 }
 
 .card {
-  width: 80px;
-  height: 80px;
+  width: 100%;
+  aspect-ratio: 1;
   background: #1f2937;
   display: flex;
   align-items: center;
@@ -34,10 +34,16 @@ h1 { margin-top: 20px; }
   font-size: 30px;
   cursor: pointer;
   border-radius: 10px;
+  transition: all 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .card.flipped {
   background: #22c55e;
+}
+
+.card.matched {
+  background: #4ade80;
 }
 
 button {
@@ -64,7 +70,12 @@ let moves = 0;
 let lock = false;
 
 function shuffle(array) {
-  return array.sort(() => Math.random() - 0.5);
+  let a = [...array];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 function startGame() {
@@ -80,14 +91,13 @@ function startGame() {
     const card = document.createElement("div");
     card.className = "card";
     card.dataset.emoji = emoji;
-    card.dataset.index = i;
     card.onclick = () => flipCard(card);
     game.appendChild(card);
   });
 }
 
 function flipCard(card) {
-  if (lock || card.classList.contains("flipped")) return;
+  if (lock || card.classList.contains("flipped") || card.classList.contains("matched")) return;
 
   card.classList.add("flipped");
   card.innerText = card.dataset.emoji;
@@ -100,7 +110,13 @@ function flipCard(card) {
     const [a, b] = flipped;
 
     if (a.dataset.emoji === b.dataset.emoji) {
+      a.classList.add("matched");
+      b.classList.add("matched");
       flipped = [];
+
+      if (document.querySelectorAll(".matched").length === cards.length) {
+        setTimeout(() => alert("Nice — you cleared it in " + moves + " moves"), 200);
+      }
     } else {
       lock = true;
       setTimeout(() => {
