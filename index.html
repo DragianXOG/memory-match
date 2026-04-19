@@ -142,9 +142,9 @@
 
   #stackerGame {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 10px;
-    max-width: 360px;
+    max-width: 380px;
     margin: 0 auto;
     align-items: end;
     min-height: 340px;
@@ -331,31 +331,48 @@
     selected: null,
     moves: 0,
     clearedPairs: 0,
+    totalPairs: 8,
+
+    createSolvableColumns() {
+      const heights = [3, 3, 3, 3, 2, 2];
+      const remaining = [...heights];
+      const columns = heights.map(() => []);
+      const pairSymbols = shuffle([...this.symbols, ...this.symbols]);
+      let pairIndex = 0;
+
+      while (remaining.some(count => count > 0)) {
+        const available = remaining
+          .map((count, index) => ({ count, index }))
+          .filter(item => item.count > 0)
+          .map(item => item.index);
+
+        const chosen = shuffle(available).slice(0, 2);
+        const symbol = pairSymbols[pairIndex];
+        pairIndex += 1;
+
+        chosen.forEach((colIndex) => {
+          columns[colIndex].push({
+            symbol,
+            cleared: false,
+            id: `c${colIndex}r${columns[colIndex].length}`
+          });
+          remaining[colIndex] -= 1;
+        });
+      }
+
+      return columns;
+    },
 
     start() {
-      const pool = shuffle([...this.symbols, ...this.symbols]);
-      const heights = [4, 3, 2, 3, 4];
-      this.columns = heights.map(() => []);
+      this.columns = this.createSolvableColumns();
       this.selected = null;
       this.moves = 0;
       this.clearedPairs = 0;
-      message.textContent = '';
-
-      let index = 0;
-      heights.forEach((height, colIndex) => {
-        for (let i = 0; i < height; i++) {
-          this.columns[colIndex].push({
-            symbol: pool[index],
-            cleared: false,
-            id: `c${colIndex}r${i}`
-          });
-          index += 1;
-        }
-      });
+      message.textContent = 'Every Stacker board is now generated to be playable.';
 
       stat1Label.textContent = 'Removals';
       stat2Label.textContent = 'Remaining';
-      subtitle.textContent = 'Like a tiny stack-based Mahjong: only the top tile of each stack can be picked. Match two identical top tiles to clear them.';
+      subtitle.textContent = 'Only the top tile of each stack can be picked. Each new board is generated so there is always at least one playable path.';
       this.render();
       this.updateStats();
     },
@@ -369,7 +386,7 @@
 
     updateStats() {
       stat1Value.textContent = this.moves;
-      stat2Value.textContent = String(8 - this.clearedPairs);
+      stat2Value.textContent = String(this.totalPairs - this.clearedPairs);
     },
 
     render() {
@@ -415,12 +432,14 @@
       if (this.selected && this.selected.colIndex === colIndex && this.selected.tileIndex === tileIndex) {
         this.selected = null;
         this.render();
+        message.textContent = 'Selection cleared.';
         return;
       }
 
       if (!this.selected) {
         this.selected = { colIndex, tileIndex, symbol: tile.symbol };
         this.render();
+        message.textContent = 'Pick another matching top tile.';
         return;
       }
 
@@ -436,7 +455,7 @@
         this.updateStats();
         this.render();
 
-        if (this.clearedPairs === 8) {
+        if (this.clearedPairs === this.totalPairs) {
           message.textContent = `Stacker cleared in ${this.moves} removals.`;
         } else {
           message.textContent = 'Match cleared.';
@@ -447,7 +466,7 @@
       this.selected = { colIndex, tileIndex, symbol: tile.symbol };
       this.updateStats();
       this.render();
-      message.textContent = 'No match. Pick another top tile.';
+      message.textContent = 'No match. Try a different exposed tile.';
     }
   };
 
