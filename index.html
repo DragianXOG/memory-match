@@ -16,6 +16,7 @@
     --muted: #cbd5e1;
     --matched: #4ade80;
     --selected: #f59e0b;
+    --danger: #fb7185;
   }
 
   * { box-sizing: border-box; }
@@ -30,7 +31,7 @@
   }
 
   .wrap {
-    max-width: 420px;
+    max-width: 440px;
     margin: 0 auto;
   }
 
@@ -64,6 +65,12 @@
     color: #0f172a;
   }
 
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
   button {
     background: var(--accent2);
     color: #082f49;
@@ -71,6 +78,8 @@
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
   }
+
+  #auxBtn.hidden { display: none; }
 
   .stats {
     display: grid;
@@ -142,20 +151,11 @@
 
   #stackerGame {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 10px;
-    max-width: 380px;
-    margin: 0 auto;
-    align-items: end;
-    min-height: 340px;
-  }
-
-  .stack {
-    min-height: 320px;
-    display: flex;
-    flex-direction: column-reverse;
+    grid-template-columns: repeat(7, 1fr);
     gap: 8px;
-    justify-content: flex-start;
+    max-width: 404px;
+    margin: 0 auto;
+    min-height: 360px;
   }
 
   .stack-tile {
@@ -164,28 +164,22 @@
     border-radius: 12px;
     font-size: 28px;
     cursor: pointer;
-    transition: transform 0.18s ease, background 0.2s ease, opacity 0.2s ease;
+    transition: transform 0.16s ease, background 0.2s ease, opacity 0.2s ease;
   }
 
-  .stack-tile.top {
-    background: #e2e8f0;
-    color: #0f172a;
-    box-shadow: 0 0 0 2px rgba(255,255,255,0.08) inset;
+  .stack-tile.empty {
+    opacity: 0;
+    pointer-events: none;
   }
 
-  .stack-tile.locked {
-    opacity: 0.42;
-    cursor: default;
-  }
-
-  .stack-tile.selected {
-    background: var(--selected);
-    color: #1c1917;
-    transform: translateY(-4px);
-  }
-
-  .stack-tile.cleared {
+  .stack-tile.hole {
     visibility: hidden;
+    pointer-events: none;
+  }
+
+  .stack-tile.highlight {
+    outline: 3px solid rgba(255,255,255,0.2);
+    transform: scale(1.05);
   }
 
   .hidden {
@@ -209,7 +203,10 @@
         <option value="memory">Memory Match</option>
         <option value="stacker">Stacker</option>
       </select>
-      <button id="newGameBtn">New Game</button>
+      <div class="button-row">
+        <button id="newGameBtn">New Game</button>
+        <button id="auxBtn" class="hidden">Shuffle</button>
+      </div>
       <div class="stats">
         <div class="stat">
           <div class="label" id="stat1Label">Moves</div>
@@ -233,6 +230,7 @@
 <script>
   const picker = document.getElementById('gamePicker');
   const newGameBtn = document.getElementById('newGameBtn');
+  const auxBtn = document.getElementById('auxBtn');
   const stat1Label = document.getElementById('stat1Label');
   const stat1Value = document.getElementById('stat1Value');
   const stat2Label = document.getElementById('stat2Label');
@@ -279,6 +277,7 @@
       stat1Label.textContent = 'Moves';
       stat2Label.textContent = 'Progress';
       subtitle.textContent = 'Flip two matching tiles.';
+      auxBtn.classList.add('hidden');
       this.updateStats();
     },
 
@@ -326,147 +325,204 @@
   };
 
   const stacker = {
-    symbols: ['🀄','🀙','🀚','🀛','🀜','🀝','🀞','🀟'],
-    columns: [],
-    selected: null,
+    rows: 8,
+    cols: 7,
+    holes: new Set(['0,0','0,6','7,0','7,6']),
+    symbols: ['🟦','🟪','🟩','🟥','🟨','🟧'],
+    board: [],
+    score: 0,
     moves: 0,
-    clearedPairs: 0,
-    totalPairs: 8,
-
-    createSolvableColumns() {
-      const heights = [3, 3, 3, 3, 2, 2];
-      const remaining = [...heights];
-      const columns = heights.map(() => []);
-      const pairSymbols = shuffle([...this.symbols, ...this.symbols]);
-      let pairIndex = 0;
-
-      while (remaining.some(count => count > 0)) {
-        const available = remaining
-          .map((count, index) => ({ count, index }))
-          .filter(item => item.count > 0)
-          .map(item => item.index);
-
-        const chosen = shuffle(available).slice(0, 2);
-        const symbol = pairSymbols[pairIndex];
-        pairIndex += 1;
-
-        chosen.forEach((colIndex) => {
-          columns[colIndex].push({
-            symbol,
-            cleared: false,
-            id: `c${colIndex}r${columns[colIndex].length}`
-          });
-          remaining[colIndex] -= 1;
-        });
-      }
-
-      return columns;
-    },
+    highlight: [],
 
     start() {
-      this.columns = this.createSolvableColumns();
-      this.selected = null;
+      this.score = 0;
       this.moves = 0;
-      this.clearedPairs = 0;
-      message.textContent = 'Every Stacker board is now generated to be playable.';
-
-      stat1Label.textContent = 'Removals';
-      stat2Label.textContent = 'Remaining';
-      subtitle.textContent = 'Only the top tile of each stack can be picked. Each new board is generated so there is always at least one playable path.';
-      this.render();
+      this.highlight = [];
+      this.generateBoard();
+      stat1Label.textContent = 'Clears';
+      stat2Label.textContent = 'Tiles Left';
+      subtitle.textContent = 'Tap connected groups of 3 or more matching tiles. The board drops down after each clear. Bigger groups are better.';
+      auxBtn.textContent = 'Shuffle';
+      auxBtn.classList.remove('hidden');
+      message.textContent = 'Stacker is now a larger match-3 style puzzle.';
       this.updateStats();
+      this.render();
     },
 
-    getTopIndex(column) {
-      for (let i = column.length - 1; i >= 0; i--) {
-        if (!column[i].cleared) return i;
-      }
-      return -1;
+    generateBoard() {
+      do {
+        this.board = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
+        const activeCells = [];
+
+        for (let r = 0; r < this.rows; r++) {
+          for (let c = 0; c < this.cols; c++) {
+            if (!this.holes.has(`${r},${c}`)) activeCells.push([r, c]);
+          }
+        }
+
+        activeCells.forEach(([r, c]) => {
+          this.board[r][c] = this.symbols[Math.floor(Math.random() * this.symbols.length)];
+        });
+      } while (!this.hasPlayableGroup());
     },
 
     updateStats() {
       stat1Value.textContent = this.moves;
-      stat2Value.textContent = String(this.totalPairs - this.clearedPairs);
+      stat2Value.textContent = String(this.countTiles());
+    },
+
+    countTiles() {
+      let total = 0;
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          if (this.board[r][c]) total += 1;
+        }
+      }
+      return total;
+    },
+
+    getNeighbors(r, c) {
+      return [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]]
+        .filter(([nr, nc]) => nr >= 0 && nr < this.rows && nc >= 0 && nc < this.cols);
+    },
+
+    getGroup(r, c) {
+      const symbol = this.board[r][c];
+      if (!symbol) return [];
+      const stack = [[r, c]];
+      const seen = new Set([`${r},${c}`]);
+      const group = [];
+
+      while (stack.length) {
+        const [cr, cc] = stack.pop();
+        group.push([cr, cc]);
+        this.getNeighbors(cr, cc).forEach(([nr, nc]) => {
+          if (this.board[nr][nc] === symbol && !seen.has(`${nr},${nc}`)) {
+            seen.add(`${nr},${nc}`);
+            stack.push([nr, nc]);
+          }
+        });
+      }
+
+      return group;
+    },
+
+    hasPlayableGroup() {
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          if (this.board[r][c] && this.getGroup(r, c).length >= 3) {
+            return true;
+          }
+        }
+      }
+      return false;
+    },
+
+    applyGravity() {
+      for (let c = 0; c < this.cols; c++) {
+        const availableRows = [];
+        for (let r = this.rows - 1; r >= 0; r--) {
+          if (!this.holes.has(`${r},${c}`)) availableRows.push(r);
+        }
+        const values = [];
+        for (let i = 0; i < availableRows.length; i++) {
+          const r = availableRows[i];
+          if (this.board[r][c]) values.push(this.board[r][c]);
+        }
+        for (let i = 0; i < availableRows.length; i++) {
+          const r = availableRows[i];
+          this.board[r][c] = values[i] || null;
+        }
+      }
+    },
+
+    shuffleBoard() {
+      const remaining = [];
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          if (this.board[r][c]) remaining.push(this.board[r][c]);
+        }
+      }
+
+      if (remaining.length === 0) return;
+
+      do {
+        const pool = shuffle(remaining);
+        let index = 0;
+        for (let r = 0; r < this.rows; r++) {
+          for (let c = 0; c < this.cols; c++) {
+            if (this.holes.has(`${r},${c}`)) continue;
+            if (this.board[r][c] !== null) {
+              this.board[r][c] = pool[index];
+              index += 1;
+            }
+          }
+        }
+      } while (!this.hasPlayableGroup());
+
+      this.highlight = [];
+      this.render();
+      message.textContent = 'Board shuffled.';
+    },
+
+    tap(r, c) {
+      if (!this.board[r][c]) return;
+      const group = this.getGroup(r, c);
+
+      if (group.length < 3) {
+        this.highlight = group;
+        this.render();
+        message.textContent = 'Need at least 3 connected matching tiles.';
+        return;
+      }
+
+      group.forEach(([gr, gc]) => {
+        this.board[gr][gc] = null;
+      });
+      this.moves += 1;
+      this.score += group.length;
+      this.highlight = [];
+      this.applyGravity();
+
+      if (this.countTiles() === 0) {
+        this.updateStats();
+        this.render();
+        message.textContent = `Board cleared in ${this.moves} clears. Nice.`;
+        return;
+      }
+
+      if (!this.hasPlayableGroup()) {
+        this.shuffleBoard();
+      }
+
+      this.updateStats();
+      this.render();
+      message.textContent = `Cleared ${group.length} tiles.`;
     },
 
     render() {
       stackerGameEl.innerHTML = '';
+      const highlightSet = new Set(this.highlight.map(([r, c]) => `${r},${c}`));
 
-      this.columns.forEach((column, colIndex) => {
-        const stack = document.createElement('div');
-        stack.className = 'stack';
-        const topIndex = this.getTopIndex(column);
+      for (let r = 0; r < this.rows; r++) {
+        for (let c = 0; c < this.cols; c++) {
+          const tile = document.createElement('div');
+          tile.className = 'stack-tile';
+          const key = `${r},${c}`;
 
-        column.forEach((tile, tileIndex) => {
-          const tileEl = document.createElement('div');
-          tileEl.className = 'stack-tile';
-
-          if (tile.cleared) {
-            tileEl.classList.add('cleared');
-            tileEl.textContent = '';
+          if (this.holes.has(key)) {
+            tile.classList.add('hole');
+          } else if (!this.board[r][c]) {
+            tile.classList.add('empty');
           } else {
-            tileEl.textContent = tile.symbol;
-            if (tileIndex === topIndex) {
-              tileEl.classList.add('top');
-              tileEl.addEventListener('click', () => this.pick(colIndex, tileIndex));
-            } else {
-              tileEl.classList.add('locked');
-            }
-
-            if (this.selected && this.selected.colIndex === colIndex && this.selected.tileIndex === tileIndex) {
-              tileEl.classList.add('selected');
-            }
+            tile.textContent = this.board[r][c];
+            if (highlightSet.has(key)) tile.classList.add('highlight');
+            tile.addEventListener('click', () => this.tap(r, c));
           }
 
-          stack.appendChild(tileEl);
-        });
-
-        stackerGameEl.appendChild(stack);
-      });
-    },
-
-    pick(colIndex, tileIndex) {
-      const tile = this.columns[colIndex][tileIndex];
-      if (tile.cleared) return;
-
-      if (this.selected && this.selected.colIndex === colIndex && this.selected.tileIndex === tileIndex) {
-        this.selected = null;
-        this.render();
-        message.textContent = 'Selection cleared.';
-        return;
-      }
-
-      if (!this.selected) {
-        this.selected = { colIndex, tileIndex, symbol: tile.symbol };
-        this.render();
-        message.textContent = 'Pick another matching top tile.';
-        return;
-      }
-
-      this.moves += 1;
-      const prev = this.selected;
-      const prevTile = this.columns[prev.colIndex][prev.tileIndex];
-
-      if (prevTile.symbol === tile.symbol) {
-        prevTile.cleared = true;
-        tile.cleared = true;
-        this.clearedPairs += 1;
-        this.selected = null;
-        this.updateStats();
-        this.render();
-
-        if (this.clearedPairs === this.totalPairs) {
-          message.textContent = `Stacker cleared in ${this.moves} removals.`;
-        } else {
-          message.textContent = 'Match cleared.';
+          stackerGameEl.appendChild(tile);
         }
-        return;
       }
-
-      this.selected = { colIndex, tileIndex, symbol: tile.symbol };
-      this.updateStats();
-      this.render();
-      message.textContent = 'No match. Try a different exposed tile.';
     }
   };
 
@@ -485,6 +541,9 @@
 
   picker.addEventListener('change', () => showGame(picker.value));
   newGameBtn.addEventListener('click', () => showGame(picker.value));
+  auxBtn.addEventListener('click', () => {
+    if (picker.value === 'stacker') stacker.shuffleBoard();
+  });
 
   showGame('memory');
 </script>
