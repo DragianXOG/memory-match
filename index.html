@@ -15,7 +15,6 @@
     --text: #f8fafc;
     --muted: #cbd5e1;
     --matched: #4ade80;
-    --selected: #f59e0b;
     --danger: #fb7185;
   }
 
@@ -162,9 +161,16 @@
     aspect-ratio: 1;
     background: var(--card2);
     border-radius: 12px;
-    font-size: 28px;
     cursor: pointer;
-    transition: transform 0.16s ease, background 0.2s ease, opacity 0.2s ease;
+    transition: transform 0.16s ease, opacity 0.2s ease, box-shadow 0.2s ease;
+    padding: 6px;
+  }
+
+  .stack-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 8px;
+    border: 2px solid rgba(255,255,255,0.16);
   }
 
   .stack-tile.empty {
@@ -178,9 +184,16 @@
   }
 
   .stack-tile.highlight {
-    outline: 3px solid rgba(255,255,255,0.2);
-    transform: scale(1.05);
+    transform: scale(1.06);
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.25);
   }
+
+  .tile-blue { background: linear-gradient(180deg, #60a5fa, #2563eb); }
+  .tile-purple { background: linear-gradient(180deg, #c084fc, #7c3aed); }
+  .tile-green { background: linear-gradient(180deg, #4ade80, #16a34a); }
+  .tile-red { background: linear-gradient(180deg, #f87171, #dc2626); }
+  .tile-yellow { background: linear-gradient(180deg, #fde047, #eab308); }
+  .tile-orange { background: linear-gradient(180deg, #fb923c, #f97316); }
 
   .hidden {
     display: none !important;
@@ -328,11 +341,23 @@
     rows: 8,
     cols: 7,
     holes: new Set(['0,0','0,6','7,0','7,6']),
-    symbols: ['🟦','🟪','🟩','🟥','🟨','🟧'],
+    tileTypes: [
+      { id: 'blue', className: 'tile-blue' },
+      { id: 'purple', className: 'tile-purple' },
+      { id: 'green', className: 'tile-green' },
+      { id: 'red', className: 'tile-red' },
+      { id: 'yellow', className: 'tile-yellow' },
+      { id: 'orange', className: 'tile-orange' }
+    ],
     board: [],
     score: 0,
     moves: 0,
     highlight: [],
+
+    randomTile() {
+      const pick = this.tileTypes[Math.floor(Math.random() * this.tileTypes.length)];
+      return { ...pick };
+    },
 
     start() {
       this.score = 0;
@@ -344,7 +369,7 @@
       subtitle.textContent = 'Tap connected groups of 3 or more matching tiles. The board drops down after each clear. Bigger groups are better.';
       auxBtn.textContent = 'Shuffle';
       auxBtn.classList.remove('hidden');
-      message.textContent = 'Stacker is now a larger match-3 style puzzle.';
+      message.textContent = 'Stacker matching is now based on explicit tile types, not emoji rendering.';
       this.updateStats();
       this.render();
     },
@@ -352,17 +377,13 @@
     generateBoard() {
       do {
         this.board = Array.from({ length: this.rows }, () => Array(this.cols).fill(null));
-        const activeCells = [];
-
         for (let r = 0; r < this.rows; r++) {
           for (let c = 0; c < this.cols; c++) {
-            if (!this.holes.has(`${r},${c}`)) activeCells.push([r, c]);
+            if (!this.holes.has(`${r},${c}`)) {
+              this.board[r][c] = this.randomTile();
+            }
           }
         }
-
-        activeCells.forEach(([r, c]) => {
-          this.board[r][c] = this.symbols[Math.floor(Math.random() * this.symbols.length)];
-        });
       } while (!this.hasPlayableGroup());
     },
 
@@ -387,8 +408,8 @@
     },
 
     getGroup(r, c) {
-      const symbol = this.board[r][c];
-      if (!symbol) return [];
+      const tile = this.board[r][c];
+      if (!tile) return [];
       const stack = [[r, c]];
       const seen = new Set([`${r},${c}`]);
       const group = [];
@@ -397,7 +418,8 @@
         const [cr, cc] = stack.pop();
         group.push([cr, cc]);
         this.getNeighbors(cr, cc).forEach(([nr, nc]) => {
-          if (this.board[nr][nc] === symbol && !seen.has(`${nr},${nc}`)) {
+          const neighbor = this.board[nr][nc];
+          if (neighbor && neighbor.id === tile.id && !seen.has(`${nr},${nc}`)) {
             seen.add(`${nr},${nc}`);
             stack.push([nr, nc]);
           }
@@ -425,8 +447,7 @@
           if (!this.holes.has(`${r},${c}`)) availableRows.push(r);
         }
         const values = [];
-        for (let i = 0; i < availableRows.length; i++) {
-          const r = availableRows[i];
+        for (const r of availableRows) {
           if (this.board[r][c]) values.push(this.board[r][c]);
         }
         for (let i = 0; i < availableRows.length; i++) {
@@ -443,8 +464,7 @@
           if (this.board[r][c]) remaining.push(this.board[r][c]);
         }
       }
-
-      if (remaining.length === 0) return;
+      if (!remaining.length) return;
 
       do {
         const pool = shuffle(remaining);
@@ -472,7 +492,7 @@
       if (group.length < 3) {
         this.highlight = group;
         this.render();
-        message.textContent = 'Need at least 3 connected matching tiles.';
+        message.textContent = `Only ${group.length} connected. Need at least 3.`;
         return;
       }
 
@@ -506,21 +526,24 @@
 
       for (let r = 0; r < this.rows; r++) {
         for (let c = 0; c < this.cols; c++) {
-          const tile = document.createElement('div');
-          tile.className = 'stack-tile';
+          const tileEl = document.createElement('div');
+          tileEl.className = 'stack-tile';
           const key = `${r},${c}`;
+          const tile = this.board[r][c];
 
           if (this.holes.has(key)) {
-            tile.classList.add('hole');
-          } else if (!this.board[r][c]) {
-            tile.classList.add('empty');
+            tileEl.classList.add('hole');
+          } else if (!tile) {
+            tileEl.classList.add('empty');
           } else {
-            tile.textContent = this.board[r][c];
-            if (highlightSet.has(key)) tile.classList.add('highlight');
-            tile.addEventListener('click', () => this.tap(r, c));
+            const inner = document.createElement('div');
+            inner.className = `stack-inner ${tile.className}`;
+            tileEl.appendChild(inner);
+            if (highlightSet.has(key)) tileEl.classList.add('highlight');
+            tileEl.addEventListener('click', () => this.tap(r, c));
           }
 
-          stackerGameEl.appendChild(tile);
+          stackerGameEl.appendChild(tileEl);
         }
       }
     }
